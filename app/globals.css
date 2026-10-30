@@ -77,6 +77,18 @@ body {
   color: var(--color-accent-ink);
 }
 
+/* ─── Shared transitions ─── */
+.ui-transition {
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-duration: var(--dur-short);
+  transition-timing-function: var(--ease-out);
+}
+.ui-transition-fast {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: var(--dur-micro);
+  transition-timing-function: var(--ease-out);
+}
+
 /* ─── Focus ─── */
 :focus { outline: none; }
 :focus-visible {

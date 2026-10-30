@@ -23,23 +23,70 @@ const styleOptions = [
   { label: "Natural", value: "natural" },
   { label: "Cinematic", value: "cinematic" },
   { label: "Anime", value: "anime" },
-  { label: "3D Render", value: "3d-render" },
+  { label: "3D render", value: "3d-render" },
   { label: "Sketch", value: "sketch" },
 ];
+
+const ease = [0.16, 1, 0.3, 1] as const;
 
 const fadeItem = {
   hidden: { opacity: 0, y: 6 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as const },
+    transition: { duration: 0.4, ease },
   },
 };
 
 const staggerContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
+  visible: { transition: { staggerChildren: 0.05 } },
 };
+
+const providerNames: Record<string, string> = {
+  openai: "OpenAI",
+  stability: "Stability",
+  replicate: "Replicate",
+};
+
+function ratioLabel(width: number, height: number) {
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(width, height) || 1;
+  return `${width / divisor}:${height / divisor}`;
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 text-neutral ui-transition"
+      style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/* Registration marks around the canvas */
+function CropMarks() {
+  const corner = "absolute h-3 w-3 border-rule-2";
+  return (
+    <span aria-hidden="true" className="pointer-events-none absolute inset-0">
+      <span className={`${corner} -left-2 -top-2 border-l border-t`} />
+      <span className={`${corner} -right-2 -top-2 border-r border-t`} />
+      <span className={`${corner} -bottom-2 -left-2 border-b border-l`} />
+      <span className={`${corner} -bottom-2 -right-2 border-b border-r`} />
+    </span>
+  );
+}
 
 /* Collapsible section */
 function Section({
@@ -57,30 +104,13 @@ function Section({
     <div className="border-b border-rule last:border-b-0">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-3 text-left group"
+        className="group flex h-10 w-full items-center justify-between text-left"
         aria-expanded={open}
       >
-        <span className="text-xs font-semibold tracking-widest uppercase text-neutral">
+        <span className="text-xs font-medium text-muted group-hover:text-ink ui-transition">
           {label}
         </span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-neutral transition-transform"
-          style={{
-            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-            transitionDuration: "var(--dur-short)",
-            transitionTimingFunction: "var(--ease-out)",
-          }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <Chevron open={open} />
       </button>
       <div
         className="grid transition-[grid-template-rows]"
@@ -91,7 +121,7 @@ function Section({
         }}
       >
         <div className="overflow-hidden">
-          <div className="pb-4 space-y-3">{children}</div>
+          <div className="space-y-2 pb-5">{children}</div>
         </div>
       </div>
     </div>
@@ -685,91 +715,97 @@ export default function Studio() {
   const generateLabel =
     batchCount > 1 ? `Generate ${batchCount} images` : "Generate";
 
+  const [plateWidth, plateHeight] = (() => {
+    if (selectedSize === "custom") {
+      return [Number(customWidth) || 1024, Number(customHeight) || 1024];
+    }
+    const [w, h] = selectedSize.split("x").map(Number);
+    return [w || 1024, h || 1024];
+  })();
+  const plateScale = plateWidth / plateHeight;
+  const plateRatioLabel =
+    (selectedSize !== "custom" &&
+      sizePresets.find((p) => p.value === selectedSize)?.ratio) ||
+    ratioLabel(plateWidth, plateHeight);
+
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex min-h-dvh flex-col md:h-dvh md:flex-row md:overflow-hidden">
       <Sidebar />
-      <main className="flex-1 flex flex-col min-w-0 bg-paper">
+      <main className="flex min-w-0 flex-1 flex-col bg-paper">
         {/* Header */}
-        <header className="h-14 border-b border-rule flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-rule px-4 md:px-6">
+          <div className="flex min-w-0 items-baseline gap-3">
             <h1 className="font-display text-base font-semibold text-ink">
               Studio
             </h1>
-            <span className="text-[10px] font-mono text-neutral bg-paper-2 border border-rule px-2 py-0.5 rounded-md uppercase tracking-wider">
-              {provider} / {selectedModel}
+            <span className="truncate font-mono text-xs text-neutral">
+              {providerNames[provider] ?? provider} · {selectedModel}
             </span>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="text-xs font-medium text-neutral hover:text-ink transition-colors" style={{ transitionProperty: "color", transitionDuration: "var(--dur-short)", transitionTimingFunction: "var(--ease-out)" }}>
+          <nav className="hidden shrink-0 items-center gap-4 sm:flex">
+            <button className="text-xs font-medium text-muted hover:text-ink ui-transition">
               History
             </button>
-            <button className="text-xs font-medium text-neutral hover:text-ink transition-colors" style={{ transitionProperty: "color", transitionDuration: "var(--dur-short)", transitionTimingFunction: "var(--ease-out)" }}>
+            <button className="text-xs font-medium text-muted hover:text-ink ui-transition">
               Templates
             </button>
-          </div>
+          </nav>
         </header>
 
         {/* Content */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel — Prompt & Controls */}
-          <div className="w-[420px] flex flex-col border-r border-rule overflow-y-auto">
-            <div className="p-5 space-y-0">
+        <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+          {/* Left panel — prompt & controls */}
+          <div className="flex w-full flex-col border-b border-rule lg:w-[380px] lg:min-h-0 lg:border-b-0 lg:border-r xl:w-[412px]">
+            <div className="flex-1 px-4 py-5 md:px-6 lg:min-h-0 lg:overflow-y-auto">
               {/* Prompt area */}
-              <div className="pb-4 border-b border-rule">
-                <label className="block mb-2 font-display text-sm font-medium tracking-wide text-ink-2">
-                  Describe your vision
-                </label>
-                
+              <div className="border-b border-rule pb-5">
+                <div className="mb-2 flex h-5 items-center justify-between">
+                  <label
+                    htmlFor="prompt"
+                    className="text-xs font-medium text-muted"
+                  >
+                    Prompt
+                  </label>
+                  <kbd className="rounded border border-rule bg-paper-3 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-neutral">
+                    ⌥P
+                  </kbd>
+                </div>
+
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`relative rounded-lg bg-paper-3 border transition-colors ${
-                    isDragging ? "border-accent bg-accent-subtle/5" : "border-rule"
-                  } focus-within:border-accent overflow-hidden`}
-                  style={{
-                    transitionProperty: "border-color, background-color",
-                    transitionDuration: "var(--dur-short)",
-                    transitionTimingFunction: "var(--ease-out)",
-                  }}
+                  className={`relative overflow-hidden rounded-lg border bg-paper-2 ui-transition focus-within:border-accent ${
+                    isDragging ? "border-accent" : "border-rule"
+                  }`}
                 >
                   <textarea
+                    id="prompt"
                     ref={textareaRef}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder={
-                      supportsImageInput
-                        ? "Describe your vision, or drop reference images here..."
-                        : "Describe your vision..."
-                    }
-                    className="w-full p-4 bg-transparent text-sm text-ink leading-relaxed placeholder:text-neutral resize-none outline-none"
-                    style={{
-                      minHeight: "120px",
-                    }}
+                    placeholder="A brass lamp on a dark green wall, late afternoon light"
+                    className="block w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-neutral"
+                    style={{ minHeight: "120px" }}
                   />
 
-                  {/* Previews if model supports image input */}
-                  {supportsImageInput && referenceImages.length > 0 && (
-                    <div className="flex flex-wrap gap-2 px-4 pb-3">
+                  {/* Reference images */}
+                  {supportsImageInput && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-rule px-3 py-2">
                       {referenceImages.map((img, idx) => (
                         <div
                           key={idx}
-                          className="relative group w-14 h-14 rounded-md overflow-hidden border border-rule"
+                          className="group relative h-10 w-10 overflow-hidden rounded-md border border-rule"
                         >
                           <img
                             src={img.url}
                             alt={`Reference ${idx + 1}`}
-                            className="w-full h-full object-cover"
+                            className="h-full w-full object-cover"
                           />
                           <button
                             type="button"
                             onClick={() => handleRemoveReferenceImage(idx)}
-                            className="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-opacity"
-                            style={{
-                              transitionProperty: "opacity, background-color",
-                              transitionDuration: "var(--dur-micro)",
-                              transitionTimingFunction: "var(--ease-out)",
-                            }}
+                            className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-paper/90 text-muted opacity-0 hover:text-ink ui-transition-fast group-hover:opacity-100 focus-visible:opacity-100"
                             aria-label="Remove reference image"
                           >
                             <svg
@@ -778,7 +814,7 @@ export default function Studio() {
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
-                              strokeWidth="2.5"
+                              strokeWidth="1.5"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
@@ -789,20 +825,13 @@ export default function Studio() {
                         </div>
                       ))}
 
-                      {/* Small click to upload box */}
-                      <label
-                        className="flex items-center justify-center w-14 h-14 rounded-md border border-dashed border-rule-2 hover:border-accent hover:bg-paper-2 cursor-pointer transition-colors text-neutral hover:text-accent"
-                        style={{
-                          transitionProperty: "border-color, background-color, color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
-                      >
+                      {/* Add reference */}
+                      <label className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-dashed border-rule-2 text-neutral hover:border-neutral hover:text-ink-2 focus-within:border-accent ui-transition">
                         <input
                           type="file"
                           multiple
                           accept="image/*"
-                          className="hidden"
+                          className="sr-only"
                           onChange={handleFileSelect}
                         />
                         <svg
@@ -811,37 +840,41 @@ export default function Studio() {
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
-                          strokeWidth="2"
+                          strokeWidth="1.5"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         >
                           <line x1="12" y1="5" x2="12" y2="19" />
                           <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
+                        <span className="sr-only">Add reference image</span>
                       </label>
+                      <span className="font-mono text-[11px] text-neutral">
+                        Add reference
+                      </span>
                     </div>
                   )}
 
-                  {/* Drag overlay message */}
+                  {/* Drag overlay */}
                   {isDragging && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-accent-subtle/20 backdrop-blur-xs pointer-events-none">
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 rounded-lg border border-accent bg-paper/85">
                       <svg
-                        width="24"
-                        height="24"
+                        width="16"
+                        height="16"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2"
+                        strokeWidth="1.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="text-accent mb-1 animate-bounce"
+                        className="text-ink-2"
                       >
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="17 8 12 3 7 8" />
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
-                      <span className="text-xs font-semibold text-accent uppercase tracking-wider">
-                        Drop images here
+                      <span className="text-xs font-medium text-ink">
+                        Drop to add reference
                       </span>
                     </div>
                   )}
@@ -850,29 +883,10 @@ export default function Studio() {
                 {/* Negative prompt toggle */}
                 <button
                   onClick={() => setShowNegative(!showNegative)}
-                  className="mt-2 flex items-center gap-1.5 text-xs text-neutral hover:text-muted"
-                  style={{ transitionProperty: "color", transitionDuration: "var(--dur-short)", transitionTimingFunction: "var(--ease-out)" }}
+                  aria-expanded={showNegative}
+                  className="mt-3 flex h-8 items-center gap-1.5 text-xs text-muted hover:text-ink ui-transition"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="transition-transform"
-                    style={{
-                      transform: showNegative
-                        ? "rotate(0deg)"
-                        : "rotate(-90deg)",
-                      transitionDuration: "var(--dur-short)",
-                      transitionTimingFunction: "var(--ease-out)",
-                    }}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
+                  <Chevron open={showNegative} />
                   Negative prompt
                 </button>
 
@@ -882,23 +896,15 @@ export default function Studio() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
-                      transition={{
-                        duration: 0.3,
-                        ease: [0.16, 1, 0.3, 1] as const,
-                      }}
+                      transition={{ duration: 0.3, ease }}
                       className="overflow-hidden"
                     >
                       <input
                         type="text"
                         value={negativePrompt}
                         onChange={(e) => setNegativePrompt(e.target.value)}
-                        placeholder="Things to exclude\u2026"
-                        className="mt-2 w-full px-4 py-2.5 rounded-lg bg-paper-3 border border-rule text-sm text-ink placeholder:text-neutral outline-none transition-colors focus-visible:border-accent"
-                        style={{
-                          transitionProperty: "border-color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
+                        placeholder="Blur, text, extra fingers"
+                        className="mt-2 h-9 w-full rounded-md border border-rule bg-paper-2 px-3 text-sm text-ink outline-none placeholder:text-neutral ui-transition focus-visible:border-accent"
                       />
                     </motion.div>
                   )}
@@ -907,80 +913,78 @@ export default function Studio() {
 
               {/* Parameters */}
               <div className="pt-1">
-                {/* Size */}
+                {/* Canvas */}
                 <Section label="Canvas">
                   <div className="grid grid-cols-3 gap-2">
-                    {sizePresets.map((preset) => (
-                      <button
-                        key={preset.value}
-                        onClick={() => setSelectedSize(preset.value)}
-                        className={`px-3 py-2.5 rounded-md text-xs font-medium transition-colors border ${
-                          selectedSize === preset.value
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-rule bg-paper-3 text-muted hover:text-ink-2 hover:border-rule-2"
-                        }`}
-                        style={{
-                          transitionProperty:
-                            "border-color, background-color, color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
-                      >
-                        <div>{preset.label}</div>
-                        <div className="mt-0.5 font-mono text-[10px] opacity-60">
-                          {preset.ratio}
-                        </div>
-                      </button>
-                    ))}
+                    {sizePresets.map((preset) => {
+                      const active = selectedSize === preset.value;
+                      return (
+                        <button
+                          key={preset.value}
+                          onClick={() => setSelectedSize(preset.value)}
+                          aria-pressed={active}
+                          className={`relative flex h-[60px] flex-col items-center justify-center gap-1 rounded-md border px-2 ui-transition ${
+                            active
+                              ? "border-rule-2 bg-paper-3 text-ink"
+                              : "border-rule bg-paper-2 text-muted hover:border-rule-2 hover:bg-paper-3/60 hover:text-ink-2"
+                          }`}
+                        >
+                          {active && (
+                            <span className="absolute right-2 top-2 h-1 w-1 rounded-full bg-accent" />
+                          )}
+                          <span className="text-xs font-medium">
+                            {preset.label}
+                          </span>
+                          <span className="font-mono text-[11px] tabular-nums text-neutral">
+                            {preset.ratio}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Conditional manual inputs for Custom size */}
+                  {/* Custom size */}
                   <AnimatePresence>
                     {selectedSize === "custom" && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{
-                          duration: 0.3,
-                          ease: [0.16, 1, 0.3, 1] as const,
-                        }}
-                        className="overflow-hidden mt-3 grid grid-cols-2 gap-3"
+                        transition={{ duration: 0.3, ease }}
+                        className="grid grid-cols-2 gap-2 overflow-hidden"
                       >
                         <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-neutral mb-1">
-                            Width (px)
+                          <label
+                            htmlFor="canvas-width"
+                            className="mb-1.5 block text-[11px] text-muted"
+                          >
+                            Width
                           </label>
                           <input
+                            id="canvas-width"
                             type="number"
                             value={customWidth}
                             onChange={(e) => setCustomWidth(e.target.value)}
                             min={256}
                             max={4096}
-                            className="w-full px-3 py-2 bg-paper-3 border border-rule rounded-md text-sm text-ink outline-none focus-visible:border-accent"
-                            style={{
-                              transitionProperty: "border-color",
-                              transitionDuration: "var(--dur-short)",
-                              transitionTimingFunction: "var(--ease-out)",
-                            }}
+                            className="h-9 w-full rounded-md border border-rule bg-paper-2 px-3 font-mono text-sm tabular-nums text-ink outline-none ui-transition focus-visible:border-accent"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-neutral mb-1">
-                            Height (px)
+                          <label
+                            htmlFor="canvas-height"
+                            className="mb-1.5 block text-[11px] text-muted"
+                          >
+                            Height
                           </label>
                           <input
+                            id="canvas-height"
                             type="number"
                             value={customHeight}
                             onChange={(e) => setCustomHeight(e.target.value)}
                             min={256}
                             max={4096}
-                            className="w-full px-3 py-2 bg-paper-3 border border-rule rounded-md text-sm text-ink outline-none focus-visible:border-accent"
-                            style={{
-                              transitionProperty: "border-color",
-                              transitionDuration: "var(--dur-short)",
-                              transitionTimingFunction: "var(--ease-out)",
-                            }}
+                            className="h-9 w-full rounded-md border border-rule bg-paper-2 px-3 font-mono text-sm tabular-nums text-ink outline-none ui-transition focus-visible:border-accent"
                           />
                         </div>
                       </motion.div>
@@ -990,84 +994,95 @@ export default function Studio() {
 
                 {/* Quality */}
                 <Section label="Quality">
-                  <div className="space-y-1.5">
-                    {qualityOptions.map((q) => (
-                      <button
-                        key={q.value}
-                        onClick={() => setSelectedQuality(q.value)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm border transition-colors ${
-                          selectedQuality === q.value
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-rule bg-paper-3 text-muted hover:text-ink-2 hover:border-rule-2"
-                        }`}
-                        style={{
-                          transitionProperty:
-                            "border-color, background-color, color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
-                      >
-                        <span className="font-medium">{q.label}</span>
-                        <span className="text-xs font-mono opacity-60">
-                          {q.desc}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="space-y-1">
+                    {qualityOptions.map((q) => {
+                      const active = selectedQuality === q.value;
+                      return (
+                        <button
+                          key={q.value}
+                          onClick={() => setSelectedQuality(q.value)}
+                          aria-pressed={active}
+                          className={`flex h-9 w-full items-center gap-2 rounded-md border px-3 ui-transition ${
+                            active
+                              ? "border-rule-2 bg-paper-3"
+                              : "border-rule bg-paper-2 hover:border-rule-2 hover:bg-paper-3/60"
+                          }`}
+                        >
+                          <span className="flex w-2 shrink-0 justify-center">
+                            {active && (
+                              <span className="h-1 w-1 rounded-full bg-accent" />
+                            )}
+                          </span>
+                          <span
+                            className={`text-[13px] ${
+                              active ? "text-ink" : "text-muted"
+                            }`}
+                          >
+                            {q.label}
+                          </span>
+                          <span className="ml-auto truncate font-mono text-[11px] text-neutral">
+                            {q.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </Section>
 
                 {/* Style */}
                 <Section label="Style">
                   <div className="flex flex-wrap gap-2">
-                    {styleOptions.map((style) => (
-                      <button
-                        key={style.value}
-                        onClick={() => setSelectedStyle(style.value)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          selectedStyle === style.value
-                            ? "border-accent bg-accent-subtle text-accent"
-                            : "border-rule bg-paper-3 text-muted hover:text-ink-2 hover:border-rule-2"
-                        }`}
-                        style={{
-                          transitionProperty:
-                            "border-color, background-color, color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
-                      >
-                        {style.label}
-                      </button>
-                    ))}
+                    {styleOptions.map((style) => {
+                      const active = selectedStyle === style.value;
+                      return (
+                        <button
+                          key={style.value}
+                          onClick={() => setSelectedStyle(style.value)}
+                          aria-pressed={active}
+                          className={`flex h-8 items-center gap-2 rounded-md border px-3 text-xs ui-transition ${
+                            active
+                              ? "border-rule-2 bg-paper-3 text-ink"
+                              : "border-rule bg-paper-2 text-muted hover:border-rule-2 hover:bg-paper-3/60 hover:text-ink-2"
+                          }`}
+                        >
+                          {active && (
+                            <span className="h-1 w-1 rounded-full bg-accent" />
+                          )}
+                          {style.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </Section>
 
                 {/* Background (GPT-image-2 only) */}
                 {isGptImage2 && (
                   <Section label="Background">
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="grid grid-cols-2 gap-2">
-                        {["auto", "opaque"].map((bg) => (
-                          <button
-                            key={bg}
-                            onClick={() => setGptImage2Background(bg)}
-                            className={`px-3 py-2.5 rounded-md text-xs font-medium transition-colors border capitalize ${
-                              gptImage2Background === bg
-                                ? "border-accent bg-accent-subtle text-accent"
-                                : "border-rule bg-paper-3 text-muted hover:text-ink-2 hover:border-rule-2"
-                            }`}
-                            style={{
-                              transitionProperty:
-                                "border-color, background-color, color",
-                              transitionDuration: "var(--dur-short)",
-                              transitionTimingFunction: "var(--ease-out)",
-                            }}
-                          >
-                            {bg}
-                          </button>
-                        ))}
+                        {["auto", "opaque"].map((bg) => {
+                          const active = gptImage2Background === bg;
+                          return (
+                            <button
+                              key={bg}
+                              onClick={() => setGptImage2Background(bg)}
+                              aria-pressed={active}
+                              className={`flex h-9 items-center justify-center gap-2 rounded-md border text-xs ui-transition ${
+                                active
+                                  ? "border-rule-2 bg-paper-3 text-ink"
+                                  : "border-rule bg-paper-2 text-muted hover:border-rule-2 hover:bg-paper-3/60 hover:text-ink-2"
+                              }`}
+                            >
+                              {active && (
+                                <span className="h-1 w-1 rounded-full bg-accent" />
+                              )}
+                              {bg === "auto" ? "Auto" : "Opaque"}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <p className="text-[11px] text-neutral mt-1.5">
-                        GPT-image-2 does not support transparent outputs.
+                      <p className="text-[11px] leading-4 text-neutral">
+                        GPT-image-2 renders opaque images only
                       </p>
                     </div>
                   </Section>
@@ -1075,92 +1090,85 @@ export default function Studio() {
 
                 {/* Output */}
                 <Section label="Output" defaultOpen={false}>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label
+                        htmlFor="output-format"
+                        className="mb-1.5 block text-[11px] text-muted"
+                      >
                         Format
                       </label>
                       <select
-                        className="w-full px-3 py-2 rounded-md bg-paper-3 border border-rule text-sm text-ink outline-none transition-colors focus-visible:border-accent"
-                        style={{
-                          transitionProperty: "border-color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
+                        id="output-format"
+                        className="h-9 w-full rounded-md border border-rule bg-paper-2 px-2 text-sm text-ink outline-none ui-transition focus-visible:border-accent"
                       >
                         <option>PNG</option>
                         <option>JPEG</option>
                         <option>WebP</option>
                       </select>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">
+                    <div>
+                      <label
+                        htmlFor="output-seed"
+                        className="mb-1.5 block text-[11px] text-muted"
+                      >
                         Seed
                       </label>
                       <input
+                        id="output-seed"
                         type="text"
                         value={seed}
                         onChange={(e) => setSeed(e.target.value)}
                         placeholder="Random"
-                        className="w-full px-3 py-2 rounded-md bg-paper-3 border border-rule text-sm text-ink placeholder:text-neutral outline-none transition-colors focus-visible:border-accent"
-                        style={{
-                          transitionProperty: "border-color",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
+                        className="h-9 w-full rounded-md border border-rule bg-paper-2 px-3 font-mono text-sm tabular-nums text-ink outline-none placeholder:text-neutral ui-transition focus-visible:border-accent"
                       />
                     </div>
                   </div>
                   {/* Batch count */}
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-medium text-muted">
+                  <div>
+                    <div className="mb-2 flex h-5 items-center justify-between">
+                      <label htmlFor="batch-count" className="text-[11px] text-muted">
                         Batch
                       </label>
-                      <span className="text-xs font-mono text-neutral tabular-nums">
+                      <span className="font-mono text-[11px] tabular-nums text-neutral">
                         {batchCount}
                       </span>
                     </div>
-                     <input
+                    <input
+                      id="batch-count"
                       ref={batchSliderRef}
                       type="range"
                       min="1"
                       max={isGptImage2 ? "10" : "8"}
                       value={batchCount}
-                      onChange={(e) =>
-                        setBatchCount(Number(e.target.value))
-                      }
-                      className="w-full h-1 rounded-full appearance-none bg-rule-2 accent-accent cursor-pointer focus-visible:outline-accent"
+                      onChange={(e) => setBatchCount(Number(e.target.value))}
+                      className="h-1 w-full cursor-pointer appearance-none rounded-full bg-rule-2 accent-accent"
                     />
                   </div>
                 </Section>
               </div>
             </div>
 
-            {/* Generate button — sticky bottom */}
-            <div className="mt-auto p-5 border-t border-rule bg-paper">
+            {/* Generate — pinned under the controls */}
+            <div className="sticky bottom-0 z-10 border-t border-rule bg-paper px-4 py-4 md:px-6 lg:static">
               <motion.button
                 onClick={handleGenerate}
                 disabled={!prompt.trim() || isGenerating}
                 whileTap={
                   !prompt.trim() || isGenerating ? undefined : { scale: 0.98 }
                 }
-                className={`w-full py-3 rounded-lg text-sm font-display font-semibold tracking-wide transition-colors ${
+                className={`flex h-11 w-full items-center justify-center gap-2 rounded-md border text-sm font-medium ui-transition ${
                   !prompt.trim() || isGenerating
-                    ? "bg-paper-3 text-neutral cursor-not-allowed"
-                    : "bg-accent text-accent-ink hover:bg-accent-hover"
+                    ? "cursor-not-allowed border-rule bg-paper-2 text-neutral"
+                    : "border-transparent bg-accent text-accent-ink hover:bg-accent-hover"
                 }`}
-                style={{
-                  transitionProperty: "background-color, color",
-                  transitionDuration: "var(--dur-short)",
-                  transitionTimingFunction: "var(--ease-out)",
-                }}
               >
                 {isGenerating ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg
                       className="h-4 w-4 animate-spin"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <circle
                         className="opacity-25"
@@ -1177,134 +1185,141 @@ export default function Studio() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    {generationStatus || "Generating\u2026"}
+                    {generationStatus || "Generating…"}
                   </span>
                 ) : (
-                  generateLabel
+                  <>
+                    {generateLabel}
+                    <span className="rounded border border-accent-ink/25 px-1.5 py-0.5 font-mono text-[11px] leading-4 opacity-70">
+                      ⌘↵
+                    </span>
+                  </>
                 )}
               </motion.button>
             </div>
           </div>
 
-          {/* Right Panel — Output */}
-          <div className="flex-1 flex flex-col min-w-0">
+          {/* Output — the canvas plate */}
+          <div className="flex min-w-0 flex-1 flex-col">
             {generatedImages.length === 0 ? (
               /* Empty state */
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                <div className="w-14 h-14 rounded-xl border border-rule flex items-center justify-center mb-5">
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-neutral"
+              <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:py-10">
+                {/* Plate for the current canvas preset */}
+                <div
+                  className="relative w-full"
+                  style={{
+                    width: `min(100%, calc(min(50vh, 480px) * ${plateScale}))`,
+                  }}
+                >
+                  <CropMarks />
+                  <div
+                    className="rounded-xl border border-rule bg-paper-2 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                    style={{ aspectRatio: `${plateWidth} / ${plateHeight}` }}
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
+                    <span
+                      className="block h-full w-full rounded-[12px] border border-rule/60"
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
-                <h3 className="font-display text-xl font-semibold text-ink mb-2">
-                  Your canvas awaits
-                </h3>
-                <p className="text-sm text-muted max-w-xs leading-relaxed">
-                  Describe what you see in your mind. Frame will bring it to
-                  life.
-                </p>
+
+                {/* Gauge */}
+                <div className="mt-4 flex items-center gap-2 font-mono text-xs tabular-nums text-neutral">
+                  <span>
+                    {plateWidth} × {plateHeight}
+                  </span>
+                  <span className="text-rule-2">/</span>
+                  <span>{plateRatioLabel}</span>
+                </div>
+
+                <div className="mt-10 flex max-w-[320px] flex-col items-center text-center">
+                  <h2 className="font-display text-2xl font-semibold text-ink">
+                    Nothing developed yet
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Write a prompt and Frame renders it on this canvas
+                  </p>
+                  <button
+                    onClick={() => textareaRef.current?.focus()}
+                    className="mt-5 flex h-9 items-center gap-2 rounded-md border border-rule bg-paper-2 px-3 text-xs font-medium text-ink-2 hover:border-rule-2 hover:bg-paper-3 ui-transition"
+                  >
+                    Write a prompt
+                    <kbd className="rounded border border-rule bg-paper-3 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-neutral">
+                      ⌥P
+                    </kbd>
+                  </button>
+                </div>
               </div>
             ) : (
-              /* Generated images */
-              <div className="flex-1 overflow-y-auto p-5">
+              /* Contact sheet */
+              <div className="flex-1 px-4 py-5 md:px-6 lg:min-h-0 lg:overflow-y-auto">
                 <motion.div
-                  className="grid grid-cols-2 gap-4"
+                  className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4"
                   variants={staggerContainer}
                   initial="hidden"
                   animate="visible"
                 >
                   {generatedImages.map((img) => (
-                    <motion.div
+                    <motion.figure
                       key={img.id}
                       variants={fadeItem}
-                      className="group relative rounded-lg overflow-hidden border border-rule hover:border-rule-2 transition-transform"
-                      style={{
-                        transitionProperty: "transform, box-shadow, border-color",
-                        transitionDuration: "var(--dur-short)",
-                        transitionTimingFunction: "var(--ease-out)",
-                      }}
-                      whileHover={{ y: -3 }}
+                      className="group overflow-hidden rounded-lg border border-rule bg-paper-2 ui-transition hover:border-rule-2"
                     >
-                      <img
-                        src={img.url}
-                        alt={img.prompt}
-                        className="w-full aspect-square object-cover"
-                      />
-                      {/* Hover overlay */}
-                      <div
-                        className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 flex items-end p-3"
-                        style={{
-                          transitionProperty: "opacity",
-                          transitionDuration: "var(--dur-short)",
-                          transitionTimingFunction: "var(--ease-out)",
-                        }}
-                      >
-                        <div className="flex items-end justify-between w-full">
-                          <span className="text-xs text-white/90 font-mono truncate max-w-[70%]">
-                            {img.prompt}
-                          </span>
-                          <div className="flex gap-1">
-                            <button
-                              className="p-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm"
-                              style={{
-                                transitionProperty: "background-color",
-                                transitionDuration: "var(--dur-micro)",
-                                transitionTimingFunction: "var(--ease-out)",
-                              }}
+                      <div className="relative aspect-square">
+                        <img
+                          src={img.url}
+                          alt={img.prompt}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute right-2 top-2 flex gap-1 opacity-100 focus-within:opacity-100 ui-transition lg:opacity-0 lg:group-hover:opacity-100">
+                          <button
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-rule-2 bg-paper/90 text-ink-2 hover:bg-paper-3 hover:text-ink ui-transition-fast"
+                            aria-label="Edit image"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                             >
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </button>
-                            <button
-                              className="p-1.5 rounded-md bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm"
-                              style={{
-                                transitionProperty: "background-color",
-                                transitionDuration: "var(--dur-micro)",
-                                transitionTimingFunction: "var(--ease-out)",
-                              }}
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-rule-2 bg-paper/90 text-ink-2 hover:bg-paper-3 hover:text-ink ui-transition-fast"
+                            aria-label="Download image"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                             >
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                              </svg>
-                            </button>
-                          </div>
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                    </motion.div>
+                      <figcaption className="border-t border-rule px-3 py-2">
+                        <p className="truncate text-xs leading-5 text-ink-2">
+                          {img.prompt}
+                        </p>
+                        <p className="mt-1 truncate font-mono text-[11px] leading-4 tabular-nums text-neutral">
+                          {img.size.replace("×", " × ")} · {img.model}
+                        </p>
+                      </figcaption>
+                    </motion.figure>
                   ))}
                 </motion.div>
               </div>
@@ -1313,7 +1328,7 @@ export default function Studio() {
         </div>
       </main>
 
-      {/* Error Modal */}
+      {/* Error dialog */}
       <AnimatePresence>
         {showErrorModal && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
@@ -1322,56 +1337,58 @@ export default function Studio() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease }}
               onClick={() => setShowErrorModal(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+              className="absolute inset-0 bg-paper/80 backdrop-blur-sm"
             />
 
-            {/* Container */}
+            {/* Dialog */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className="relative w-full max-w-md bg-paper-2 border border-rule rounded-xl shadow-2xl p-6 z-10"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.3, ease }}
+              className="relative z-10 w-full max-w-md rounded-xl border border-rule bg-paper-2 p-6 shadow-2xl"
               role="alertdialog"
               aria-modal="true"
+              aria-labelledby="generation-error-title"
             >
               {/* Header */}
-              <div className="flex items-center gap-3 mb-4 text-error">
+              <div className="mb-4 flex items-center gap-2.5">
                 <svg
-                  width="20"
-                  height="20"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="text-error"
+                  aria-hidden="true"
                 >
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
-                <h2 className="font-display text-base font-semibold text-ink">
-                  Generation Failed
+                <h2
+                  id="generation-error-title"
+                  className="font-display text-base font-semibold text-ink"
+                >
+                  Generation failed
                 </h2>
               </div>
 
               {/* Message */}
-              <div className="p-3.5 rounded-lg border border-error/20 bg-error/5 text-xs text-muted leading-relaxed font-mono break-words mb-5 select-text">
+              <div className="mb-5 select-text break-words rounded-lg border border-rule bg-paper-3 p-3 font-mono text-xs leading-5 text-muted">
                 {errorMessage}
               </div>
 
-              {/* Footer Buttons */}
-              <div className="flex justify-end gap-3">
+              {/* Actions */}
+              <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowErrorModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-paper-3 border border-rule text-muted hover:text-ink-2 hover:border-rule-2 transition-colors"
-                  style={{
-                    transitionProperty: "background-color, border-color, color",
-                    transitionDuration: "var(--dur-short)",
-                    transitionTimingFunction: "var(--ease-out)",
-                  }}
+                  className="h-9 rounded-md border border-rule bg-paper-2 px-3 text-xs font-medium text-muted hover:border-rule-2 hover:text-ink ui-transition"
                 >
                   Close
                 </button>
@@ -1381,14 +1398,9 @@ export default function Studio() {
                     setShowErrorModal(false);
                     handleGenerate();
                   }}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-accent text-accent-ink hover:bg-accent-hover transition-colors"
-                  style={{
-                    transitionProperty: "background-color, color",
-                    transitionDuration: "var(--dur-short)",
-                    transitionTimingFunction: "var(--ease-out)",
-                  }}
+                  className="h-9 rounded-md bg-accent px-3 text-xs font-medium text-accent-ink hover:bg-accent-hover ui-transition"
                 >
-                  Retry Generation
+                  Retry
                 </motion.button>
               </div>
             </motion.div>

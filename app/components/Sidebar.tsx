@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const authEase = [0.16, 1, 0.3, 1] as const;
+
 const navItems = [
   {
     label: "Studio",
@@ -92,65 +94,50 @@ export default function Sidebar() {
   }, [router]);
 
   return (
-    <aside className="w-[220px] min-h-screen bg-paper-2 border-r border-rule flex flex-col shrink-0">
+    <aside className="flex w-full shrink-0 flex-row items-center border-b border-rule bg-paper-2 px-2 md:h-dvh md:w-[248px] md:flex-col md:items-stretch md:border-b-0 md:border-r md:px-0">
       {/* Wordmark */}
-      <div className="px-5 py-6 flex items-center gap-2.5">
+      <div className="flex h-14 shrink-0 items-center gap-2.5 px-2 md:px-4">
         <span
-          className="block w-2.5 h-2.5 rounded-sm bg-accent"
+          className="block h-2 w-2 rounded-[2px] bg-accent"
           aria-hidden="true"
         />
-        <span className="font-display text-lg font-semibold tracking-tight text-ink">
+        <span className="font-display text-[17px] font-semibold leading-none text-ink">
           Frame
         </span>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5">
+      <nav className="ml-auto flex items-center gap-1 px-1 md:ml-0 md:w-full md:flex-1 md:flex-col md:items-stretch md:gap-0.5 md:px-2 md:py-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
-              style={{
-                transitionProperty: "background-color, color",
-                transitionDuration: "var(--dur-short)",
-                transitionTimingFunction: "var(--ease-out)",
-              }}
+              aria-current={isActive ? "page" : undefined}
+              className={`relative flex h-10 w-10 items-center justify-center gap-2.5 rounded-lg md:h-9 md:w-full md:justify-start md:px-2.5 ui-transition ${
+                isActive
+                  ? "bg-paper-3 text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  : "text-muted hover:bg-paper-3/60 hover:text-ink"
+              }`}
             >
-              {/* Active indicator — animated vertical bar */}
+              {/* Active marker */}
               {isActive && (
                 <motion.span
                   layoutId="sidebar-indicator"
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent"
-                  transition={{
-                    type: "spring",
-                    stiffness: 350,
-                    damping: 30,
-                  }}
+                  className="absolute left-0 top-1/2 hidden h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent md:block"
+                  transition={{ duration: 0.2, ease: authEase }}
                 />
               )}
 
               <span
-                className={`transition-colors ${
-                  isActive ? "text-accent" : "text-neutral group-hover:text-ink-2"
+                className={`flex h-[18px] w-[18px] items-center justify-center ${
+                  isActive ? "text-ink-2" : "text-neutral"
                 }`}
-                style={{
-                  transitionProperty: "color",
-                  transitionDuration: "var(--dur-short)",
-                  transitionTimingFunction: "var(--ease-out)",
-                }}
               >
                 {item.icon}
               </span>
-              <span
-                className={
-                  isActive
-                    ? "text-ink"
-                    : "text-muted group-hover:text-ink"
-                }
-              >
+              <span className="hidden text-sm font-medium md:inline">
                 {item.label}
               </span>
             </Link>
@@ -158,36 +145,40 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Shortcuts trigger info at bottom */}
-      <div className="px-5 py-2 text-[10px] text-neutral border-t border-rule/50">
-        <div className="flex items-center justify-between">
-          <span>Shortcuts help</span>
-          <kbd className="px-1 py-0.5 font-mono text-[9px] bg-paper-3 border border-rule-2 rounded text-muted shadow-xs">
+      {/* Shortcuts trigger */}
+      <div className="hidden px-2 pb-1 md:block">
+        <button
+          onClick={() => setShowShortcuts(true)}
+          className="flex h-9 w-full items-center justify-between rounded-md px-2 text-xs text-muted hover:bg-paper-3/60 hover:text-ink ui-transition"
+        >
+          <span>Shortcuts</span>
+          <kbd className="rounded border border-rule bg-paper-3 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-neutral">
             ⌘ /
           </kbd>
-        </div>
+        </button>
       </div>
 
-      {/* Bottom section */}
-      <div className="p-3 border-t border-rule">
-        <div className="flex items-center gap-3 px-3 py-2.5">
-          <div className="w-7 h-7 rounded-full bg-paper-3 border border-rule flex items-center justify-center text-xs font-mono font-medium text-muted">
+      {/* Account */}
+      <div className="hidden border-t border-rule p-3 md:block">
+        <div className="flex items-center gap-3 px-1 py-1">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-rule bg-paper-3 font-mono text-[11px] font-medium text-muted">
             A
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-ink truncate">Admin</p>
-            <p className="text-xs font-mono text-neutral">Local</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium leading-5 text-ink">
+              Admin
+            </p>
+            <p className="font-mono text-[11px] leading-4 text-neutral">Local</p>
           </div>
         </div>
       </div>
 
-      {/* Shortcuts Modal dialog */}
       <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </aside>
   );
 }
 
-/* ── Shortcuts Modal dialog ────────────────────────────────── */
+/* ── Shortcuts dialog ─────────────────────────────────────── */
 
 function ShortcutsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   return (
@@ -199,48 +190,44 @@ function ShortcutsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: authEase }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+            className="absolute inset-0 bg-paper/80 backdrop-blur-sm"
           />
 
-          {/* Dialog Container */}
+          {/* Dialog */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="relative w-full max-w-md bg-paper-2 border border-rule rounded-xl shadow-2xl overflow-hidden p-5 z-10"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.3, ease: authEase }}
+            className="relative z-10 w-full max-w-md overflow-hidden rounded-xl border border-rule bg-paper-2 p-6 shadow-2xl"
             role="dialog"
             aria-modal="true"
+            aria-label="Keyboard shortcuts"
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-4 border-b border-rule pb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-sm bg-accent" />
-                <h2 className="font-display text-base font-semibold text-ink">
-                  Keyboard Shortcuts
-                </h2>
-              </div>
+            <div className="mb-4 flex items-center justify-between border-b border-rule pb-3">
+              <h2 className="font-display text-base font-semibold text-ink">
+                Keyboard shortcuts
+              </h2>
               <button
                 onClick={onClose}
-                className="text-neutral hover:text-ink hover:bg-paper-3 p-1 rounded-md transition-colors"
+                className="rounded-md p-1.5 text-neutral hover:bg-paper-3 hover:text-ink ui-transition"
                 aria-label="Close dialog"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
 
-            {/* List */}
-            <div className="space-y-5 max-h-[350px] overflow-y-auto pr-1">
-              {/* Navigation Group */}
+            {/* Groups */}
+            <div className="max-h-[min(64vh,560px)] space-y-5 overflow-y-auto pr-1">
               <div>
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral mb-2">
-                  Navigation
-                </h3>
-                <div className="grid grid-cols-1 gap-1">
+                <h3 className="mb-1.5 text-xs font-medium text-muted">Navigation</h3>
+                <div className="space-y-0.5">
                   <ShortcutRow keys={["⌥", "1"]} desc="Go to Studio" />
                   <ShortcutRow keys={["⌥", "2"]} desc="Go to Gallery" />
                   <ShortcutRow keys={["⌥", "3"]} desc="Go to Editor" />
@@ -248,30 +235,24 @@ function ShortcutsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 </div>
               </div>
 
-              {/* Studio Actions Group */}
               <div>
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral mb-2">
-                  Studio Page
-                </h3>
-                <div className="grid grid-cols-1 gap-1">
-                  <ShortcutRow keys={["⌘", "Enter"]} desc="Generate image(s)" />
-                  <ShortcutRow keys={["⌥", "P"]} desc="Focus Prompt Input" />
-                  <ShortcutRow keys={["⌥", "N"]} desc="Toggle Negative Prompt" />
-                  <ShortcutRow keys={["⌥", "C"]} desc="Cycle Canvas presets" />
-                  <ShortcutRow keys={["⌥", "Q"]} desc="Cycle Quality options" />
-                  <ShortcutRow keys={["⌥", "S"]} desc="Cycle Style options" />
-                  <ShortcutRow keys={["⌥", "B"]} desc="Focus Batch slider" />
+                <h3 className="mb-1.5 text-xs font-medium text-muted">Studio</h3>
+                <div className="space-y-0.5">
+                  <ShortcutRow keys={["⌘", "↵"]} desc="Generate images" />
+                  <ShortcutRow keys={["⌥", "P"]} desc="Focus prompt" />
+                  <ShortcutRow keys={["⌥", "N"]} desc="Toggle negative prompt" />
+                  <ShortcutRow keys={["⌥", "C"]} desc="Cycle canvas preset" />
+                  <ShortcutRow keys={["⌥", "Q"]} desc="Cycle quality" />
+                  <ShortcutRow keys={["⌥", "S"]} desc="Cycle style" />
+                  <ShortcutRow keys={["⌥", "B"]} desc="Focus batch slider" />
                 </div>
               </div>
 
-              {/* General Group */}
               <div>
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider text-neutral mb-2">
-                  General
-                </h3>
-                <div className="grid grid-cols-1 gap-1">
-                  <ShortcutRow keys={["⌘", "/"]} desc="Toggle Shortcuts Help" />
-                  <ShortcutRow keys={["Esc"]} desc="Close Modal" />
+                <h3 className="mb-1.5 text-xs font-medium text-muted">General</h3>
+                <div className="space-y-0.5">
+                  <ShortcutRow keys={["⌘", "/"]} desc="Toggle shortcuts" />
+                  <ShortcutRow keys={["Esc"]} desc="Close dialog" />
                 </div>
               </div>
             </div>
@@ -284,13 +265,13 @@ function ShortcutsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
 function ShortcutRow({ keys, desc }: { keys: string[]; desc: string }) {
   return (
-    <div className="flex items-center justify-between text-xs py-1.5 border-b border-rule/20 last:border-0">
-      <span className="text-muted">{desc}</span>
-      <div className="flex gap-1 shrink-0">
+    <div className="flex h-8 items-center justify-between gap-4">
+      <span className="text-[13px] text-muted">{desc}</span>
+      <div className="flex shrink-0 gap-1">
         {keys.map((k, i) => (
           <kbd
             key={i}
-            className="px-1.5 py-0.5 min-w-[18px] text-center font-mono text-[9px] bg-paper-3 border border-rule-2 rounded text-ink font-semibold shadow-xs"
+            className="min-w-[20px] rounded border border-rule bg-paper-3 px-1.5 py-0.5 text-center font-mono text-[11px] leading-4 text-ink-2"
           >
             {k}
           </kbd>
